@@ -29,7 +29,7 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/secure-chat-server:latest
 
-  # The 'deploy' job is now updated to use Ansible.
+  # The 'deploy' job is now updated to use the standard Ansible pattern.
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
@@ -38,20 +38,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
       
-      # Step 2: Install Ansible and its required collections on the GitHub runner.
+      # Step 2: Install Ansible and its required Docker collection on the GitHub runner.
       - name: Install Ansible
         run: |
           pip install ansible
           ansible-galaxy collection install community.docker
 
-      # Step 3: Run the Ansible playbook on the EC2 instance.
+      # Step 3: Run the Ansible playbook FROM the GitHub runner.
       - name: Run Ansible Playbook
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_PRIVATE_KEY }}
-          # The script now just runs a single, clean command.
-          script: |
-            ansible-playbook deploy_playbook.yml --extra-vars "dockerhub_username=${{ secrets.DOCKERHUB_USERNAME }}"
+        # We set an environment variable to disable SSH host key checking for simplicity in CI/CD.
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+        run: |
+          # Create a temporary private key file for Ansible to use.
+          # We securely echo the secret into a file and set the correct permissions.
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+          # Run the ansible-playbook command directly on the runner.
+          # -i: Specifies the inventory (the server to connect to). We pass the host and user directly.
+          # --extra-vars: Passes the Docker Hub username as a variable to the playbook.
+          ansible-playbook deploy_playbook.yml \
+            -i "${{ secrets.EC2_HOST }}," \
+            --user ${{ secrets.EC2_USERNAME }} \
+            --extra-vars "dockerhub_username=${{ secrets.DOCKERHUB_USERNAME }}"
 
