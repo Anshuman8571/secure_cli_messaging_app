@@ -1,48 +1,57 @@
-name: Deploy Chat server to EC2 with Ansible
+# This is the name of your GitHub Actions workflow.
+name: Deploy Chat Server to EC2 with Ansible
 
-on: 
-    push:
-        branches:
-            - master
+# This section defines when the workflow will run.
+on:
+  push:
+    # IMPORTANT: Make sure this branch name matches your repository's default branch.
+    branches:
+      - master
 
 jobs:
-    build-and-push:  
-        runs-on: ubuntu-latest # This specifies the job will run on a fresh virtual machine hosted by github
-        steps: 
-            - name: Checkout code
-              # Makes the code available for build, test or deplotyment steps.
-              uses: actions/checkout@v3 #To clone the github repo into the runner's workspace.
+  # The 'build-and-push' job remains exactly the same.
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-            - name: Login to Docker
-              uses: docker/login-action@v2
-              with: 
-                username: ${{ secrets.DOCKERHUB_USERNAME }}
-                password: ${{ secrets.DOCKERHUB_TOKEN }}
-            
-            - name: Build and push Docker image
-              uses: docker/build-push-action@v4
-              with: 
-                context: ./server
-                push: true
-                tags: ${{ secrets.DOCKERHUB_USERNAME }}/secure-chat-server:latest
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    deploy: 
-        needs: build-and-push
-        runs-on: ubuntu-latest
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./server
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/secure-chat-server:latest
 
-        steps:
-            - name: Deploy to EC2
-              # This lets us to excecute the remote SSH commands direclty from github actions workflow
-              # This is used when Deploying the code to cloud
-              # restarting services, running scripts remotely, copying files or trigger build
-              uses: appleboy/ssh-action@v1.0.3 
-              with: 
-                host: ${{ secrets.EC2_HOST }}
-                username: ${{ secrets.EC2_USERNAME }}
-                key: ${{ secrets.EC2_PRIVATE_KEY }}
-                script: |
-                    docker stop chat-server || true
-                    docker rm chat-server || true
-                    docker pull ${{ secrets.DOCKERHUB_USERNAME }}/secure-chat-server:latest
-                    docker run -d -p 8765:8765 --name chat-server ${{ secrets.DOCKERHUB_USERNAME }}/secure-chat-server:latest
-                    
+  # The 'deploy' job is now updated to use Ansible.
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Check out the repository code again to access the playbook file.
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      # Step 2: Install Ansible and its required collections on the GitHub runner.
+      - name: Install Ansible
+        run: |
+          pip install ansible
+          ansible-galaxy collection install community.docker
+
+      # Step 3: Run the Ansible playbook on the EC2 instance.
+      - name: Run Ansible Playbook
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          # The script now just runs a single, clean command.
+          script: |
+            ansible-playbook deploy_playbook.yml --extra-vars "dockerhub_username=${{ secrets.DOCKERHUB_USERNAME }}"
+
