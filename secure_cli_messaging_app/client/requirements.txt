@@ -1,3 +1,4 @@
 websockets
 cryptography
 aioconsole
+asyncio

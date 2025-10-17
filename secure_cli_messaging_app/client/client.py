@@ -14,7 +14,7 @@ from crypto_utils import (
     decrypt_message
 )
 
-SERVER_WS_URL = "ws://127.0.0.1:8765"
+SERVER_WS_URL = "ws://3.109.58.129:8765"
 PRIVATE_KEY_FILE = "private_key.pem"
 PUBLIC_KEY_FILE = "public_key.pem"
 

@@ -1,0 +1,39 @@
+---
+- name: Deploy Chat Server
+  hosts: all
+  become: yes
+
+  tasks:
+  - name: Ensure Docker is installed
+    apt: 
+      name: docker.io
+      state: present
+      update_cache: yes
+
+  - name: Ensure Docker service is running
+    service: 
+      name: docker
+      state: started
+      enabled: yes
+
+  - name: Pull the latest chat server image from Docker Hub
+    docker_image: 
+      name: "anshuman271/secure-chat-server:latest"
+      source: pull
+
+  - name: Stop the existing chat server container
+    docker_container: 
+      name: chat-server
+      state: absent
+    ignore_errors: yes
+
+  - name: Start the new chat server container
+    docker_container: 
+      name: chat-server
+      image: "anshuman271/secure-chat-server:latest"
+      state: started
+      restart_policy: always
+      ports:
+        - "8765:8765"
+        
+
